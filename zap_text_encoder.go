@@ -39,6 +39,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -50,7 +51,7 @@ import (
 
 // DefaultTimeEncoder serializes time.Time to a human-readable formatted string
 func DefaultTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	s := t.Format("2006/01/02 15:04:05.000 -07:00")
+	s := t.Format("2006-01-02 15:04:05.000000 -07:00")
 	if e, ok := enc.(*textEncoder); ok {
 		for _, c := range []byte(s) {
 			e.buf.AppendByte(c)
@@ -147,7 +148,7 @@ func NewTextEncoder(cfg *Config) (zapcore.Encoder, error) {
 		MessageKey:     "message",
 		StacktraceKey:  "stack",
 		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
 		EncodeTime:     DefaultTimeEncoder,
 		EncodeDuration: zapcore.StringDurationEncoder,
 		EncodeCaller:   ShortCallerEncoder,
@@ -411,39 +412,22 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 		final.endQuoteFiled()
 	}
 
+	final.beginQuoteFiled()
+	final.AppendInt(os.Getpid())
+	final.endQuoteFiled()
+
 	if final.LevelKey != "" {
 		final.beginQuoteFiled()
-		cur := final.buf.Len()
-		final.EncodeLevel(ent.Level, final)
-		if cur == final.buf.Len() {
-			// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
-			// output JSON valid.
-			final.AppendString(ent.Level.String())
-		}
+		final.encodeLevel(ent.Level)
 		final.endQuoteFiled()
 	}
 
-	if ent.LoggerName != "" && final.NameKey != "" {
-		final.beginQuoteFiled()
-		cur := final.buf.Len()
-		nameEncoder := final.EncodeName
-
-		// if no name encoder provided, fall back to FullNameEncoder for backwards
-		// compatibility
-		if nameEncoder == nil {
-			nameEncoder = zapcore.FullNameEncoder
-		}
-
-		nameEncoder(ent.LoggerName, final)
-		if cur == final.buf.Len() {
-			// User-supplied EncodeName was a no-op. Fall back to strings to
-			// keep output JSON valid.
-			final.AppendString(ent.LoggerName)
-		}
-		final.endQuoteFiled()
-	}
 	if ent.Caller.Defined && final.CallerKey != "" {
 		final.beginQuoteFiled()
+		if ent.LoggerName != "" && final.NameKey != "" {
+			final.safeAddString(ent.LoggerName)
+			final.buf.AppendByte(' ')
+		}
 		cur := final.buf.Len()
 		final.EncodeCaller(ent.Caller, final)
 		if cur == final.buf.Len() {
@@ -455,9 +439,8 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 	}
 	// add Message
 	if len(ent.Message) > 0 {
-		final.beginQuoteFiled()
-		final.AppendString(ent.Message)
-		final.endQuoteFiled()
+		final.buf.AppendByte(' ')
+		final.safeAddString(ent.Message)
 	}
 	if enc.buf.Len() > 0 {
 		final.buf.AppendByte(' ')
@@ -494,7 +477,7 @@ func (enc *textEncoder) closeOpenNamespaces() {
 
 func (enc *textEncoder) addKey(key string) {
 	enc.addElementSeparator()
-	enc.safeAddStringWithQuote(key)
+	enc.safeAddString(key)
 	enc.buf.AppendByte('=')
 }
 
@@ -660,5 +643,26 @@ func (enc *textEncoder) encodeError(f zapcore.Field) {
 			enc.AddString(f.Key+"Verbose", verbose)
 			enc.endQuoteFiled()
 		}
+	}
+}
+
+func (enc *textEncoder) encodeLevel(l zapcore.Level) {
+	switch l {
+	case zapcore.DebugLevel:
+		enc.buf.AppendString("debug")
+	case zapcore.InfoLevel:
+		enc.buf.AppendString("info")
+	case zapcore.WarnLevel:
+		enc.buf.AppendString("warning")
+	case zapcore.ErrorLevel:
+		enc.buf.AppendString("error")
+	case zapcore.DPanicLevel:
+		enc.buf.AppendString("dpanic")
+	case zapcore.PanicLevel:
+		enc.buf.AppendString("panic")
+	case zapcore.FatalLevel:
+		enc.buf.AppendString("fatal")
+	default:
+		enc.buf.AppendString(fmt.Sprintf("Level(%d)", l))
 	}
 }
