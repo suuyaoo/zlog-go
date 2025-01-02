@@ -30,6 +30,7 @@ import (
 
 var globalMu sync.Mutex
 var globalLogger, subGlobalLogger, globalProperties, globalSugarLogger atomic.Value
+var globalFileLogger atomic.Value
 
 var registerOnce sync.Once
 
@@ -48,6 +49,7 @@ func InitLogger(cfg *Config, opts ...zap.Option) (*zap.Logger, *ZapProperties, e
 		if err != nil {
 			return nil, nil, err
 		}
+		globalFileLogger.Store(lg)
 		output = zapcore.AddSync(lg)
 	} else {
 		stdOut, _, err := zap.Open([]string{"stdout"}...)
@@ -251,4 +253,13 @@ func Sync() error {
 		return err
 	}
 	return S().Sync()
+}
+
+// Rotate rotate the file log
+func Rotate() error {
+	lg := globalFileLogger.Load().(*lumberjack.Logger)
+	if lg != nil {
+		return lg.Rotate()
+	}
+	return nil
 }
