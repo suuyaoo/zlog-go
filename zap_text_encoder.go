@@ -559,7 +559,7 @@ func (enc *textEncoder) safeAddByteString(s []byte) {
 func (enc *textEncoder) needDoubleQuotes(s string) bool {
 	for i := 0; i < len(s); {
 		b := s[i]
-		if b <= 0x20 {
+		if b < 0x20 {
 			return true
 		}
 		switch b {
