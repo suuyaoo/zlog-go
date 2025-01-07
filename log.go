@@ -25,7 +25,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var globalMu sync.Mutex
@@ -175,7 +174,7 @@ func (s *lockWithTimeoutWrapper) Sync() error {
 }
 
 // initFileLog initializes file based logging options.
-func initFileLog(cfg *FileLogConfig) (*lumberjack.Logger, error) {
+func initFileLog(cfg *FileLogConfig) (*Logger, error) {
 	if st, err := os.Stat(cfg.Filename); err == nil {
 		if st.IsDir() {
 			return nil, errors.New("can't use directory as log file name")
@@ -195,8 +194,7 @@ func initFileLog(cfg *FileLogConfig) (*lumberjack.Logger, error) {
 		return nil, fmt.Errorf("can't set compression to `%s`", cfg.Compression)
 	}
 
-	// use lumberjack to logrotate
-	return &lumberjack.Logger{
+	return &Logger{
 		Filename:   cfg.Filename,
 		MaxSize:    cfg.MaxSize,
 		MaxBackups: cfg.MaxBackups,
@@ -257,9 +255,18 @@ func Sync() error {
 
 // Rotate rotate the file log
 func Rotate() error {
-	lg := globalFileLogger.Load().(*lumberjack.Logger)
+	lg := globalFileLogger.Load().(*Logger)
 	if lg != nil {
 		return lg.Rotate()
+	}
+	return nil
+}
+
+// Reopen roopen the file log
+func Reopen() error {
+	lg := globalFileLogger.Load().(*Logger)
+	if lg != nil {
+		return lg.Reopen()
 	}
 	return nil
 }
