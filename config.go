@@ -21,10 +21,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const (
-	defaultLogMaxSize = 300 // MB
-)
-
 // FileLogConfig serializes file log related config in toml/json.
 type FileLogConfig struct {
 	// Log filename, leave empty to disable file log.

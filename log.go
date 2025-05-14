@@ -180,9 +180,6 @@ func initFileLog(cfg *FileLogConfig) (*Logger, error) {
 			return nil, errors.New("can't use directory as log file name")
 		}
 	}
-	if cfg.MaxSize == 0 {
-		cfg.MaxSize = defaultLogMaxSize
-	}
 
 	compress := false
 	switch cfg.Compression {
